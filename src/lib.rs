@@ -1,12 +1,6 @@
 #![doc = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/README.md"))]
 #![warn(missing_docs)]
 
-/*
-Possible TODO:
-* update README (example (include buffer resizing) & features)
-* update docs
-*/
-
 use cfg_if::cfg_if;
 use std::rc::Rc;
 use winit::{
