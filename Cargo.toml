@@ -1,0 +1,30 @@
+[package]
+name = "win-loop"
+version = "0.1.0"
+description = "Windowing (using `winit`), nice input handling and frame-rate-independent game loop all wrapped up in a neat little package."
+authors = ["Solar-Falcon"]
+edition = "2021"
+license = "MIT"
+keywords = ["windowing", "input", "game", "loop"]
+repository = "https://github.com/Solar-Falcon/win-loop"
+readme = "README.md"
+
+[dependencies]
+anyhow = "1"
+cfg-if = "1"
+fnv = "1"
+log = "0.4"
+thiserror = "1"
+web-time = "0.2"
+
+[dependencies.winit]
+version = "0.29"
+default-features = false
+# default options, but without rwh
+features = ["x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita"]
+
+[features]
+default = []
+rwh_04 = ["winit/rwh_04"]
+rwh_05 = ["winit/rwh_05"]
+rwh_06 = ["winit/rwh_06"]
