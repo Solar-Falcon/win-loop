@@ -97,7 +97,7 @@ pub trait App {
     }
 }
 
-/// Start the application asynchronously.
+/// Start the application.
 pub fn start<A, R>(
     event_loop: EventLoop<()>,
     window: Window,
