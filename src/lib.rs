@@ -108,6 +108,7 @@ pub fn start<A, R>(
 ) -> anyhow::Result<()>
 where
     A: App<RenderContext = R> + 'static,
+    R: 'static,
 {
     let window = Rc::new(window);
 

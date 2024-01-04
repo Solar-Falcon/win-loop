@@ -8,6 +8,8 @@ Originally part of [`pix-win-loop`][3], now moved to a separate crate.
 The crate features `rwh_04`, `rwh_05` and `rwh_06` enable corresponding `winit` features.
 By default `winit` has all its default features enabled except `rwh_06`, so you have to specify one of the `rwh`s in case you need them.
 
+Warning! Crate versions 0.3 and lower might fail to compile on web because of a silly mistake. Should be fixed in 0.4.0.
+
 [1]: https://crates.io/crates/pixels
 [2]: https://crates.io/crates/winit
 [3]: https://crates.io/crates/pix-win-loop
