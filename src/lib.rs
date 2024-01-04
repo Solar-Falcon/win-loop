@@ -107,7 +107,7 @@ pub fn start<A, R>(
     max_frame_time: Duration,
 ) -> anyhow::Result<()>
 where
-    A: App<RenderContext = R>,
+    A: App<RenderContext = R> + 'static,
 {
     let window = Rc::new(window);
 
