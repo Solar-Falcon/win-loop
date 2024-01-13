@@ -79,16 +79,13 @@ impl Context {
 
 /// Application trait.
 pub trait App {
-    /// Will be provided in `render()`.
-    type RenderContext;
-
     /// Application update.
     /// Rate of updates can be set using [`Context`].
     fn update(&mut self, ctx: &mut Context) -> anyhow::Result<()>;
 
     /// Application render.
     /// Will be called once every frame.
-    fn render(&mut self, ctx: &mut Self::RenderContext, blending_factor: f64) -> anyhow::Result<()>;
+    fn render(&mut self, blending_factor: f64) -> anyhow::Result<()>;
 
     /// Custom event handler if needed.
     #[inline]
@@ -98,18 +95,16 @@ pub trait App {
 }
 
 /// Start the application.
-pub fn start<A, R>(
+///
+/// Depending on the platform, this function may not return (see <https://docs.rs/winit/latest/winit/event_loop/struct.EventLoop.html#method.run>).
+/// On web uses <https://docs.rs/winit/latest/wasm32-unknown-unknown/winit/platform/web/trait.EventLoopExtWebSys.html#tymethod.spawn> instead of `run()`.
+pub fn start(
     event_loop: EventLoop<()>,
     window: Window,
-    mut app: A,
-    mut render: R,
+    mut app: impl App + 'static,
     target_frame_time: Duration,
     max_frame_time: Duration,
-) -> anyhow::Result<()>
-where
-    A: App<RenderContext = R> + 'static,
-    R: 'static,
-{
+) -> anyhow::Result<()> {
     let window = Rc::new(window);
 
     let mut context = Context::new(window.clone(), target_frame_time, max_frame_time);
@@ -167,9 +162,10 @@ where
                                 accumulated_time.saturating_sub(context.target_frame_time);
                         }
 
-                        let blending_factor = accumulated_time.as_secs_f64() / context.target_frame_time.as_secs_f64();
+                        let blending_factor = accumulated_time.as_secs_f64()
+                            / context.target_frame_time.as_secs_f64();
 
-                        if handle_error(app.render(&mut render, blending_factor), elwt).is_err() {
+                        if handle_error(app.render(blending_factor), elwt).is_err() {
                             #[allow(clippy::needless_return)]
                             // keep 'return' in case I add code after this and don't notice
                             return;
