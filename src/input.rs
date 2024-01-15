@@ -2,6 +2,7 @@ use std::rc::Rc;
 
 use fnv::FnvHashMap;
 use winit::{
+    dpi::PhysicalPosition,
     event::{ElementState, Event, Modifiers, MouseButton, WindowEvent},
     keyboard::{Key, KeyCode, ModifiersKeyState, NamedKey, PhysicalKey},
     window::Window,
@@ -92,7 +93,7 @@ pub struct Input {
     physical_keys: FnvHashMap<KeyCode, InputState>,
     logical_keys: FnvHashMap<NamedKey, InputState>,
     mouse_buttons: FnvHashMap<MouseButton, InputState>,
-    cursor_pos: (f64, f64),
+    cursor_pos: PhysicalPosition<f64>,
 }
 
 impl Input {
@@ -104,13 +105,13 @@ impl Input {
             physical_keys: FnvHashMap::default(),
             logical_keys: FnvHashMap::default(),
             mouse_buttons: FnvHashMap::default(),
-            cursor_pos: (0., 0.),
+            cursor_pos: PhysicalPosition::new(0., 0.),
         }
     }
 
     /// Cursor position (from [`WindowEvent::CursorMoved`](https://docs.rs/winit/0.29.5/winit/event/enum.WindowEvent.html#variant.CursorMoved)).
     #[inline]
-    pub fn cursor_pos(&self) -> (f64, f64) {
+    pub fn cursor_pos(&self) -> PhysicalPosition<f64> {
         self.cursor_pos
     }
 
@@ -120,7 +121,7 @@ impl Input {
         self.mods
     }
 
-    /// All pressed physical keys.
+    /// All input states of physical keys.
     #[inline]
     pub fn physical_keys(&self) -> &FnvHashMap<KeyCode, InputState> {
         &self.physical_keys
@@ -150,7 +151,7 @@ impl Input {
             .map_or(false, InputState::is_released)
     }
 
-    /// All pressed logical keys.
+    /// All input states of logical keys.
     #[inline]
     pub fn logical_keys(&self) -> &FnvHashMap<NamedKey, InputState> {
         &self.logical_keys
@@ -180,7 +181,7 @@ impl Input {
             .map_or(false, InputState::is_released)
     }
 
-    /// All pressed mouse buttons.
+    /// All input states of mouse buttons.
     #[inline]
     pub fn mouse_buttons(&self) -> &FnvHashMap<MouseButton, InputState> {
         &self.mouse_buttons
@@ -264,7 +265,7 @@ impl Input {
                         position,
                         ..
                     } => {
-                        self.cursor_pos = (*position).into();
+                        self.cursor_pos = *position;
                     }
                     WindowEvent::MouseInput {
                         device_id: _,
@@ -277,10 +278,6 @@ impl Input {
                     _ => {}
                 }
             }
-            Event::DeviceEvent {
-                device_id: _,
-                event: _,
-            } => {}
             _ => {}
         }
     }

@@ -9,13 +9,10 @@ use winit::{
     window::Window,
 };
 
-use web_time::Instant;
+use web_time::{Duration, Instant};
 
 mod input;
 pub use input::{Input, InputState};
-
-#[doc(no_inline)]
-pub use web_time::Duration;
 
 pub use anyhow;
 pub use winit;
