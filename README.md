@@ -11,7 +11,7 @@ The crate features `rwh_04`, `rwh_05` and `rwh_06` enable corresponding `winit` 
 By default `winit` has all its default features enabled except `rwh_06`, so you have to specify one of the `rwh`s in case you need them.
 
 Note:
-As of version 0.6, all of `winit`'s features are disabled.
+As of version 0.6.0 (and only 0.6.0, as it stands now; see note 2), all of `winit`'s features are disabled.
 You can still enable `rwh_NN` directly from this crate's features. If you need to enable others, add something like:
 
 ```toml
@@ -21,6 +21,10 @@ winit = { version = "0.29", features = [ ...whatever you need... ] }
 ```
 
 to your `Cargo.toml`.
+
+Note 2:
+As of version 0.6.1, the `winit-default` feature has been added, which enables `winit`'s default features, except for `rwh_06`.
+It is enabled by default so that `docs.rs` can actually build the crate.
 
 ## Warning
 

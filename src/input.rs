@@ -1,6 +1,5 @@
+use rustc_hash::FxHashMap;
 use std::rc::Rc;
-
-use fnv::FnvHashMap;
 use winit::{
     dpi::PhysicalPosition,
     event::{ElementState, Event, Modifiers, MouseButton, WindowEvent},
@@ -90,9 +89,9 @@ impl From<ElementState> for InputState {
 pub struct Input {
     pub(crate) window: Rc<Window>,
     mods: KeyMods,
-    physical_keys: FnvHashMap<KeyCode, InputState>,
-    logical_keys: FnvHashMap<NamedKey, InputState>,
-    mouse_buttons: FnvHashMap<MouseButton, InputState>,
+    physical_keys: FxHashMap<KeyCode, InputState>,
+    logical_keys: FxHashMap<NamedKey, InputState>,
+    mouse_buttons: FxHashMap<MouseButton, InputState>,
     cursor_pos: PhysicalPosition<f64>,
 }
 
@@ -102,9 +101,9 @@ impl Input {
         Self {
             window,
             mods: KeyMods::default(),
-            physical_keys: FnvHashMap::default(),
-            logical_keys: FnvHashMap::default(),
-            mouse_buttons: FnvHashMap::default(),
+            physical_keys: FxHashMap::default(),
+            logical_keys: FxHashMap::default(),
+            mouse_buttons: FxHashMap::default(),
             cursor_pos: PhysicalPosition::new(0., 0.),
         }
     }
@@ -123,7 +122,7 @@ impl Input {
 
     /// All input states of physical keys.
     #[inline]
-    pub fn physical_keys(&self) -> &FnvHashMap<KeyCode, InputState> {
+    pub fn physical_keys(&self) -> &FxHashMap<KeyCode, InputState> {
         &self.physical_keys
     }
 
@@ -153,7 +152,7 @@ impl Input {
 
     /// All input states of logical keys.
     #[inline]
-    pub fn logical_keys(&self) -> &FnvHashMap<NamedKey, InputState> {
+    pub fn logical_keys(&self) -> &FxHashMap<NamedKey, InputState> {
         &self.logical_keys
     }
 
@@ -183,7 +182,7 @@ impl Input {
 
     /// All input states of mouse buttons.
     #[inline]
-    pub fn mouse_buttons(&self) -> &FnvHashMap<MouseButton, InputState> {
+    pub fn mouse_buttons(&self) -> &FxHashMap<MouseButton, InputState> {
         &self.mouse_buttons
     }
 
