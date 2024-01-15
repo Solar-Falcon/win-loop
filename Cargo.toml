@@ -1,6 +1,6 @@
 [package]
 name = "win-loop"
-version = "0.6.2"
+version = "0.7.0"
 description = "Windowing (using `winit`), nice input handling and frame-rate-independent game loop all wrapped up in a neat little package."
 authors = ["Solar-Falcon"]
 edition = "2021"

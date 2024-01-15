@@ -2,7 +2,7 @@
 #![warn(missing_docs)]
 
 use cfg_if::cfg_if;
-use std::rc::Rc;
+use std::sync::Arc;
 use winit::{
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
@@ -30,7 +30,7 @@ pub struct Context {
 
 impl Context {
     #[inline]
-    fn new(window: Rc<Window>, target_frame_time: Duration, max_frame_time: Duration) -> Self {
+    fn new(window: Arc<Window>, target_frame_time: Duration, max_frame_time: Duration) -> Self {
         Self {
             target_frame_time,
             max_frame_time,
@@ -97,13 +97,11 @@ pub trait App {
 /// On web uses <https://docs.rs/winit/latest/wasm32-unknown-unknown/winit/platform/web/trait.EventLoopExtWebSys.html#tymethod.spawn> instead of `run()`.
 pub fn start(
     event_loop: EventLoop<()>,
-    window: Window,
+    window: Arc<Window>,
     mut app: impl App + 'static,
     target_frame_time: Duration,
     max_frame_time: Duration,
 ) -> anyhow::Result<()> {
-    let window = Rc::new(window);
-
     let mut context = Context::new(window.clone(), target_frame_time, max_frame_time);
 
     let mut instant = Instant::now();
