@@ -2,15 +2,16 @@
 #![warn(missing_docs)]
 
 use cfg_if::cfg_if;
+use handler::AppHandler;
 use std::sync::Arc;
+use web_time::Duration;
 use winit::{
-    event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
+    event::Event,
+    event_loop::{ControlFlow, EventLoop},
     window::Window,
 };
 
-use web_time::{Duration, Instant};
-
+mod handler;
 mod input;
 pub use input::{Input, InputState};
 
@@ -29,10 +30,11 @@ pub struct Context {
 }
 
 impl Context {
+    /// Create a new context.
     #[inline]
-    fn new(window: Arc<Window>, target_frame_time: Duration, max_frame_time: Duration) -> Self {
+    pub fn new(window: Arc<Window>, fps: u32, max_frame_time: Duration) -> Self {
         Self {
-            target_frame_time,
+            target_frame_time: Duration::from_secs_f64(1. / fps as f64),
             max_frame_time,
             delta_time: Duration::ZERO,
             exit: false,
@@ -59,8 +61,14 @@ impl Context {
         self.target_frame_time = time;
     }
 
+    /// Set the desired FPS. Overrides `target_frame_time` since they are inversions of each other.
+    #[inline]
+    pub fn set_target_fps(&mut self, fps: u32) {
+        self.target_frame_time = Duration::from_secs_f64(1. / fps as f64);
+    }
+
     /// Set the maximum time between application updates.
-    /// The real frame time can be loger, but [`Context::frame_time()`] will not exceed this value.
+    /// The real frame time can be longer, but [`Context::frame_time()`] will not exceed this value.
     /// Implemented based on <https://gafferongames.com/post/fix_your_timestep>.
     #[inline]
     pub fn set_max_frame_time(&mut self, time: Duration) {
@@ -86,117 +94,34 @@ pub trait App {
 
     /// Custom event handler if needed.
     #[inline]
-    fn handle(&mut self, _event: &Event<()>) -> anyhow::Result<()> {
+    fn handle(&mut self, _event: Event<()>) -> anyhow::Result<()> {
         Ok(())
     }
 }
 
 /// Start the application.
 ///
-/// Depending on the platform, this function may not return (see <https://docs.rs/winit/latest/winit/event_loop/struct.EventLoop.html#method.run>).
-/// On web uses <https://docs.rs/winit/latest/wasm32-unknown-unknown/winit/platform/web/trait.EventLoopExtWebSys.html#tymethod.spawn> instead of `run()`.
+/// Depending on the platform, this function may not return (see <https://docs.rs/winit/latest/winit/event_loop/struct.EventLoop.html#method.run_app>).
+/// On web uses <https://docs.rs/winit/latest/wasm32-unknown-unknown/winit/platform/web/trait.EventLoopExtWebSys.html#tymethod.spawn_app> instead of `run_app()`.
 pub fn start(
     event_loop: EventLoop<()>,
-    window: Arc<Window>,
-    mut app: impl App + 'static,
-    target_frame_time: Duration,
-    max_frame_time: Duration,
+    context: Context,
+    app: impl App + 'static,
 ) -> anyhow::Result<()> {
-    let mut context = Context::new(window.clone(), target_frame_time, max_frame_time);
-
-    let mut instant = Instant::now();
-    let mut accumulated_time = Duration::ZERO;
-
     event_loop.set_control_flow(ControlFlow::Poll);
 
-    let event_handler = move |event: Event<()>, elwt: &EventLoopWindowTarget<()>| {
-        elwt.set_control_flow(ControlFlow::Poll);
-
-        if handle_error(app.handle(&event), elwt).is_err() {
-            return;
-        }
-
-        context.input.process_event(&event);
-
-        match event {
-            Event::WindowEvent { window_id, event } if window_id == window.id() => {
-                match event {
-                    WindowEvent::CloseRequested => {
-                        elwt.exit();
-                    }
-                    WindowEvent::RedrawRequested => {
-                        let mut elapsed = instant.elapsed();
-                        instant = Instant::now();
-
-                        if elapsed > context.max_frame_time {
-                            elapsed = context.max_frame_time;
-                        }
-
-                        accumulated_time += elapsed;
-
-                        let mut keys_updated = false;
-
-                        while accumulated_time > context.target_frame_time {
-                            context.delta_time = context.target_frame_time;
-
-                            if handle_error(app.update(&mut context), elwt).is_err() {
-                                return;
-                            }
-
-                            if context.exit {
-                                elwt.exit();
-                                return;
-                            }
-
-                            if !keys_updated {
-                                context.input.update_keys();
-                                keys_updated = true;
-                            }
-
-                            accumulated_time =
-                                accumulated_time.saturating_sub(context.target_frame_time);
-                        }
-
-                        let blending_factor = accumulated_time.as_secs_f64()
-                            / context.target_frame_time.as_secs_f64();
-
-                        if handle_error(app.render(blending_factor), elwt).is_err() {
-                            #[allow(clippy::needless_return)]
-                            // keep 'return' in case I add code after this and don't notice
-                            return;
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            Event::AboutToWait => {
-                window.request_redraw();
-            }
-            _ => {}
-        }
-    };
+    #[cfg_attr(target_arch = "wasm32", allow(unused_mut))]
+    let mut handler = AppHandler::new(context, app);
 
     cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
             use winit::platform::web::EventLoopExtWebSys;
 
-            event_loop.spawn(event_handler);
+            event_loop.spawn_app(handler);
         } else {
-            event_loop.run(event_handler)?;
+            event_loop.run_app(&mut handler)?;
         }
     }
 
     Ok(())
-}
-
-#[inline]
-fn handle_error(result: anyhow::Result<()>, elwt: &EventLoopWindowTarget<()>) -> Result<(), ()> {
-    if let Err(error) = result {
-        log::error!("{}", error);
-        elwt.exit();
-
-        Err(())
-    } else {
-        Ok(())
-    }
 }

@@ -2,7 +2,7 @@ use rustc_hash::FxHashMap;
 use std::sync::Arc;
 use winit::{
     dpi::PhysicalPosition,
-    event::{ElementState, Event, Modifiers, MouseButton, WindowEvent},
+    event::{ElementState, Modifiers, MouseButton, MouseScrollDelta, WindowEvent},
     keyboard::{Key, KeyCode, ModifiersKeyState, NamedKey, PhysicalKey},
     window::Window,
 };
@@ -93,6 +93,7 @@ pub struct Input {
     logical_keys: FxHashMap<NamedKey, InputState>,
     mouse_buttons: FxHashMap<MouseButton, InputState>,
     cursor_pos: PhysicalPosition<f64>,
+    mouse_scroll: MouseScrollDelta,
 }
 
 impl Input {
@@ -105,13 +106,20 @@ impl Input {
             logical_keys: FxHashMap::default(),
             mouse_buttons: FxHashMap::default(),
             cursor_pos: PhysicalPosition::new(0., 0.),
+            mouse_scroll: MouseScrollDelta::LineDelta(0., 0.),
         }
     }
 
-    /// Cursor position (from [`WindowEvent::CursorMoved`](https://docs.rs/winit/0.29.5/winit/event/enum.WindowEvent.html#variant.CursorMoved)).
+    /// Cursor position (from [`WindowEvent::CursorMoved`](https://docs.rs/winit/latest/winit/event/enum.WindowEvent.html#variant.CursorMoved)).
     #[inline]
     pub fn cursor_pos(&self) -> PhysicalPosition<f64> {
         self.cursor_pos
+    }
+
+    /// Mouse scroll value.
+    #[inline]
+    pub fn mouse_scroll(&self) -> MouseScrollDelta {
+        self.mouse_scroll
     }
 
     /// Get current keyboard modifiers.
@@ -237,45 +245,49 @@ impl Input {
             InputState::Down => true,
             InputState::Released => false,
         });
+
+        // self.mouse_scroll = MouseScrollDelta::LineDelta(0., 0.);
     }
 
-    pub(crate) fn process_event(&mut self, event: &Event<()>) {
+    pub(crate) fn process_event(&mut self, event: &WindowEvent) {
         match event {
-            Event::WindowEvent { window_id, event } if *window_id == self.window.id() => {
-                match event {
-                    WindowEvent::KeyboardInput {
-                        device_id: _,
-                        event,
-                        is_synthetic: false,
-                    } if !event.repeat => {
-                        if let PhysicalKey::Code(key_code) = event.physical_key {
-                            self.physical_keys.insert(key_code, event.state.into());
-                        }
-
-                        if let Key::Named(key) = event.logical_key {
-                            self.logical_keys.insert(key, event.state.into());
-                        }
-                    }
-                    WindowEvent::ModifiersChanged(mods) => {
-                        self.mods.update(mods);
-                    }
-                    WindowEvent::CursorMoved {
-                        device_id: _,
-                        position,
-                        ..
-                    } => {
-                        self.cursor_pos = *position;
-                    }
-                    WindowEvent::MouseInput {
-                        device_id: _,
-                        state,
-                        button,
-                        ..
-                    } => {
-                        self.mouse_buttons.insert(*button, (*state).into());
-                    }
-                    _ => {}
+            WindowEvent::KeyboardInput {
+                device_id: _,
+                event,
+                is_synthetic: false,
+            } if !event.repeat => {
+                if let PhysicalKey::Code(key_code) = event.physical_key {
+                    self.physical_keys.insert(key_code, event.state.into());
                 }
+
+                if let Key::Named(key) = event.logical_key {
+                    self.logical_keys.insert(key, event.state.into());
+                }
+            }
+            WindowEvent::ModifiersChanged(mods) => {
+                self.mods.update(mods);
+            }
+            WindowEvent::CursorMoved {
+                device_id: _,
+                position,
+                ..
+            } => {
+                self.cursor_pos = *position;
+            }
+            WindowEvent::MouseWheel {
+                device_id: _,
+                delta,
+                phase: _,
+            } => {
+                self.mouse_scroll = *delta;
+            }
+            WindowEvent::MouseInput {
+                device_id: _,
+                state,
+                button,
+                ..
+            } => {
+                self.mouse_buttons.insert(*button, (*state).into());
             }
             _ => {}
         }
