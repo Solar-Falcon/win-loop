@@ -246,7 +246,7 @@ impl Input {
             InputState::Released => false,
         });
 
-        // self.mouse_scroll = MouseScrollDelta::LineDelta(0., 0.);
+        self.mouse_scroll = MouseScrollDelta::LineDelta(0., 0.);
     }
 
     pub(crate) fn process_event(&mut self, event: &WindowEvent) {
