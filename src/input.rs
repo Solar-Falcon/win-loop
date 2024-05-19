@@ -1,10 +1,8 @@
 use rustc_hash::FxHashMap;
-use std::sync::Arc;
 use winit::{
     dpi::PhysicalPosition,
     event::{ElementState, Modifiers, MouseButton, MouseScrollDelta, WindowEvent},
     keyboard::{Key, KeyCode, ModifiersKeyState, NamedKey, PhysicalKey},
-    window::Window,
 };
 
 /// Keyboard modifiers.
@@ -87,7 +85,6 @@ impl From<ElementState> for InputState {
 /// Input handler.
 #[derive(Debug)]
 pub struct Input {
-    pub(crate) window: Arc<Window>,
     mods: KeyMods,
     physical_keys: FxHashMap<KeyCode, InputState>,
     logical_keys: FxHashMap<NamedKey, InputState>,
@@ -98,9 +95,8 @@ pub struct Input {
 
 impl Input {
     #[inline]
-    pub(crate) fn new(window: Arc<Window>) -> Self {
+    pub(crate) fn new() -> Self {
         Self {
-            window,
             mods: KeyMods::default(),
             physical_keys: FxHashMap::default(),
             logical_keys: FxHashMap::default(),

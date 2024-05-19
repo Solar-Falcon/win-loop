@@ -8,7 +8,7 @@ use web_time::Duration;
 use winit::{
     event::Event,
     event_loop::{ControlFlow, EventLoop},
-    window::Window,
+    window::{Window, WindowAttributes},
 };
 
 mod handler;
@@ -27,25 +27,22 @@ pub struct Context {
     delta_time: Duration,
     /// Input handler.
     pub input: Input,
+    /// Window.
+    pub window: Arc<Window>,
 }
 
 impl Context {
     /// Create a new context.
     #[inline]
-    pub fn new(window: Arc<Window>, fps: u32, max_frame_time: Duration) -> Self {
+    pub(crate) fn new(window: Arc<Window>, fps: u32, max_frame_time: Duration) -> Self {
         Self {
             target_frame_time: Duration::from_secs_f64(1. / fps as f64),
             max_frame_time,
             delta_time: Duration::ZERO,
             exit: false,
-            input: Input::new(window),
+            input: Input::new(),
+            window,
         }
-    }
-
-    /// `winit` window.
-    #[inline]
-    pub fn window(&self) -> &Window {
-        &self.input.window
     }
 
     /// Time between previous and current update.
@@ -104,14 +101,17 @@ pub trait App {
 /// Depending on the platform, this function may not return (see <https://docs.rs/winit/latest/winit/event_loop/struct.EventLoop.html#method.run_app>).
 /// On web uses <https://docs.rs/winit/latest/wasm32-unknown-unknown/winit/platform/web/trait.EventLoopExtWebSys.html#tymethod.spawn_app> instead of `run_app()`.
 pub fn start(
-    event_loop: EventLoop<()>,
-    context: Context,
+    window_attributes: WindowAttributes,
+    fps: u32,
+    max_frame_time: Duration,
     app: impl App + 'static,
 ) -> anyhow::Result<()> {
+    let event_loop = EventLoop::new()?;
+
     event_loop.set_control_flow(ControlFlow::Poll);
 
     #[cfg_attr(target_arch = "wasm32", allow(unused_mut))]
-    let mut handler = AppHandler::new(context, app);
+    let mut handler = AppHandler::new(window_attributes, fps, max_frame_time, app);
 
     cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
