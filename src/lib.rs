@@ -3,12 +3,10 @@
 
 use cfg_if::cfg_if;
 use handler::AppHandler;
-use std::sync::Arc;
 use web_time::Duration;
 use winit::{
     event::Event,
-    event_loop::{ControlFlow, EventLoop},
-    window::{Window, WindowAttributes},
+    event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
 };
 
 mod handler;
@@ -27,21 +25,18 @@ pub struct Context {
     delta_time: Duration,
     /// Input handler.
     pub input: Input,
-    /// Window.
-    pub window: Arc<Window>,
 }
 
 impl Context {
     /// Create a new context.
     #[inline]
-    pub(crate) fn new(window: Arc<Window>, fps: u32, max_frame_time: Duration) -> Self {
+    pub(crate) fn new(fps: u32, max_frame_time: Duration) -> Self {
         Self {
             target_frame_time: Duration::from_secs_f64(1. / fps as f64),
             max_frame_time,
             delta_time: Duration::ZERO,
             exit: false,
             input: Input::new(),
-            window,
         }
     }
 
@@ -80,9 +75,7 @@ impl Context {
 }
 
 /// Application trait.
-pub trait App<D = ()>: Sized {
-    fn init(data: D, window: &Arc<Window>) -> anyhow::Result<Self>;
-
+pub trait App {
     /// Application update.
     /// Rate of updates can be set using [`Context`].
     fn update(&mut self, ctx: &mut Context) -> anyhow::Result<()>;
@@ -98,31 +91,28 @@ pub trait App<D = ()>: Sized {
     }
 }
 
-#[inline]
-pub fn start<A>(
-    window_attributes: WindowAttributes,
-    fps: u32,
-    max_frame_time: Duration,
-) -> anyhow::Result<()> where A: App {
-    start_with::<A, _>(window_attributes, fps, max_frame_time, ())
-}
+/// App initialization function.
+pub type AppInitFunc<A> = dyn FnOnce(&ActiveEventLoop) -> anyhow::Result<A>;
 
 /// Start the application.
+/// `app_init` will be called once during the next [`Event::Resumed`](https://docs.rs/winit/latest/winit/event/enum.Event.html#variant.Resumed).
 ///
 /// Depending on the platform, this function may not return (see <https://docs.rs/winit/latest/winit/event_loop/struct.EventLoop.html#method.run_app>).
 /// On web uses <https://docs.rs/winit/latest/wasm32-unknown-unknown/winit/platform/web/trait.EventLoopExtWebSys.html#tymethod.spawn_app> instead of `run_app()`.
-pub fn start_with<A, D>(
-    window_attributes: WindowAttributes,
+pub fn start<A>(
     fps: u32,
     max_frame_time: Duration,
-    app_creation_data: D,
-) -> anyhow::Result<()> where A: App<D> {
+    app_init: Box<AppInitFunc<A>>,
+) -> anyhow::Result<()>
+where
+    A: App,
+{
     let event_loop = EventLoop::new()?;
 
     event_loop.set_control_flow(ControlFlow::Poll);
 
     #[cfg_attr(target_arch = "wasm32", allow(unused_mut))]
-    let mut handler: AppHandler<A, D> = AppHandler::new(window_attributes, fps, max_frame_time, app_creation_data);
+    let mut handler = AppHandler::new(app_init, fps, max_frame_time);
 
     cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
