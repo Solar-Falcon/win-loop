@@ -10,22 +10,25 @@ use winit::{
 
 // a needlessly complicated construct to avoid cloning WindowAttributes
 #[derive(Debug)]
-enum AppCtx {
-    Ctx(Context),
-    Info(CtxCreationInfo),
+enum AppCtx<A, D> {
+    Init {
+        app: A,
+        ctx: Context,
+    },
+    Info(CtxCreationInfo<D>),
     TemporarilyEmpty,
 }
 
-impl AppCtx {
+impl<A, D> AppCtx<A, D> {
     #[inline]
-    fn get_ctx(&mut self) -> Option<&mut Context> {
+    fn get(&mut self) -> Option<(&mut A, &mut Context)> {
         match self {
-            AppCtx::Ctx(ctx) => Some(ctx),
+            AppCtx::Init { app, ctx } => Some((app, ctx)),
             _ => None,
         }
     }
 
-    fn construct_ctx(&mut self, event_loop: &ActiveEventLoop) -> anyhow::Result<()> {
+    fn construct_ctx(&mut self, event_loop: &ActiveEventLoop) -> anyhow::Result<()> where A: App<D> {
         if matches!(self, AppCtx::Info(_)) {
             let ac = std::mem::replace(self, AppCtx::TemporarilyEmpty);
 
@@ -34,13 +37,16 @@ impl AppCtx {
                 _ => unreachable!(),
             };
 
-            let window = event_loop.create_window(info.attrs)?;
+            let window = Arc::new(event_loop.create_window(info.attrs)?);
 
-            *self = AppCtx::Ctx(Context::new(
-                Arc::new(window),
-                info.fps,
-                info.max_frame_time,
-            ));
+            *self = AppCtx::Init {
+                app: A::init(info.app_creation_data, &window)?,
+                ctx: Context::new(
+                    window,
+                    info.fps,
+                    info.max_frame_time,
+                ),
+            };
         }
 
         Ok(())
@@ -48,69 +54,78 @@ impl AppCtx {
 }
 
 #[derive(Debug)]
-struct CtxCreationInfo {
+struct CtxCreationInfo<D> {
     attrs: WindowAttributes,
     fps: u32,
     max_frame_time: Duration,
+    app_creation_data: D,
 }
 
 #[derive(Debug)]
-pub struct AppHandler<A: App> {
-    context: AppCtx,
+pub struct AppHandler<A: App<D>, D> {
+    context: AppCtx<A, D>,
     instant: Instant,
-    app: A,
     accumulated_time: Duration,
 }
 
-impl<A: App> AppHandler<A> {
+impl<A: App<D>, D> AppHandler<A, D> {
     #[inline]
-    pub fn new(attrs: WindowAttributes, fps: u32, max_frame_time: Duration, app: A) -> Self {
+    pub fn new(attrs: WindowAttributes, fps: u32, max_frame_time: Duration, app_creation_data: D) -> Self {
         Self {
             context: AppCtx::Info(CtxCreationInfo {
                 attrs,
                 fps,
                 max_frame_time,
+                app_creation_data
             }),
-            app,
             instant: Instant::now(),
             accumulated_time: Duration::ZERO,
         }
     }
+
+    #[inline]
+    fn pass_event(&mut self, event: Event<()>, event_loop: &ActiveEventLoop) -> Result<(), ()> {
+        if let Some((app, _)) = self.context.get() {
+            handle_error(app.handle(event), event_loop)
+        } else {
+            Ok(())
+        }
+    }
 }
 
-impl<A: App> ApplicationHandler for AppHandler<A> {
+impl<A: App<D>, D> ApplicationHandler for AppHandler<A, D> {
     #[inline]
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if handle_error(self.context.construct_ctx(event_loop), event_loop).is_err() {
             return;
         }
 
-        let _ = handle_error(self.app.handle(Event::Resumed), event_loop);
+        let _ = self.pass_event(Event::Resumed, event_loop);
     }
 
     #[inline]
     fn suspended(&mut self, event_loop: &ActiveEventLoop) {
-        let _ = handle_error(self.app.handle(Event::Suspended), event_loop);
+        let _ = self.pass_event(Event::Suspended, event_loop);
     }
 
     #[inline]
     fn exiting(&mut self, event_loop: &ActiveEventLoop) {
-        let _ = handle_error(self.app.handle(Event::LoopExiting), event_loop);
+        let _ = self.pass_event(Event::LoopExiting, event_loop);
     }
 
     #[inline]
     fn memory_warning(&mut self, event_loop: &ActiveEventLoop) {
-        let _ = handle_error(self.app.handle(Event::MemoryWarning), event_loop);
+        let _ = self.pass_event(Event::MemoryWarning, event_loop);
     }
 
     #[inline]
     fn new_events(&mut self, event_loop: &ActiveEventLoop, cause: StartCause) {
-        let _ = handle_error(self.app.handle(Event::NewEvents(cause)), event_loop);
+        let _ = self.pass_event(Event::NewEvents(cause), event_loop);
     }
 
     #[inline]
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: ()) {
-        let _ = handle_error(self.app.handle(Event::UserEvent(event)), event_loop);
+        let _ = self.pass_event(Event::UserEvent(event), event_loop);
     }
 
     fn window_event(
@@ -119,7 +134,7 @@ impl<A: App> ApplicationHandler for AppHandler<A> {
         window_id: WindowId,
         event: WindowEvent,
     ) {
-        if let Some(ctx) = self.context.get_ctx() {
+        if let Some((app, ctx)) = self.context.get() {
             if ctx.window.id() == window_id {
                 ctx.input.process_event(&event);
 
@@ -127,12 +142,9 @@ impl<A: App> ApplicationHandler for AppHandler<A> {
                     event_loop.exit();
                 }
             }
-        }
 
-        let _ = handle_error(
-            self.app.handle(Event::WindowEvent { window_id, event }),
-            event_loop,
-        );
+            let _ = handle_error(app.handle(Event::WindowEvent { window_id, event }), event_loop);
+        }
     }
 
     #[inline]
@@ -142,18 +154,15 @@ impl<A: App> ApplicationHandler for AppHandler<A> {
         device_id: winit::event::DeviceId,
         event: winit::event::DeviceEvent,
     ) {
-        let _ = handle_error(
-            self.app.handle(Event::DeviceEvent { device_id, event }),
-            event_loop,
-        );
+        let _ = self.pass_event(Event::DeviceEvent { device_id, event }, event_loop);
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-        if handle_error(self.app.handle(Event::AboutToWait), event_loop).is_err() {
-            return;
-        }
+        if let Some((app, ctx)) = self.context.get() {
+            if handle_error(app.handle(Event::AboutToWait), event_loop).is_err() {
+                return;
+            }
 
-        if let Some(ctx) = self.context.get_ctx() {
             let mut elapsed = self.instant.elapsed();
             self.instant = Instant::now();
 
@@ -168,7 +177,7 @@ impl<A: App> ApplicationHandler for AppHandler<A> {
             while self.accumulated_time > ctx.target_frame_time {
                 ctx.delta_time = ctx.target_frame_time;
 
-                if handle_error(self.app.update(ctx), event_loop).is_err() {
+                if handle_error(app.update(ctx), event_loop).is_err() {
                     return;
                 }
 
@@ -187,7 +196,7 @@ impl<A: App> ApplicationHandler for AppHandler<A> {
                 let blending_factor =
                     self.accumulated_time.as_secs_f64() / ctx.target_frame_time.as_secs_f64();
 
-                let _ = handle_error(self.app.render(blending_factor), event_loop);
+                let _ = handle_error(app.render(blending_factor), event_loop);
             }
         }
     }

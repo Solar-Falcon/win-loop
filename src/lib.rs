@@ -80,7 +80,9 @@ impl Context {
 }
 
 /// Application trait.
-pub trait App {
+pub trait App<D = ()>: Sized {
+    fn init(data: D, window: &Arc<Window>) -> anyhow::Result<Self>;
+
     /// Application update.
     /// Rate of updates can be set using [`Context`].
     fn update(&mut self, ctx: &mut Context) -> anyhow::Result<()>;
@@ -96,22 +98,31 @@ pub trait App {
     }
 }
 
+#[inline]
+pub fn start<A>(
+    window_attributes: WindowAttributes,
+    fps: u32,
+    max_frame_time: Duration,
+) -> anyhow::Result<()> where A: App {
+    start_with::<A, _>(window_attributes, fps, max_frame_time, ())
+}
+
 /// Start the application.
 ///
 /// Depending on the platform, this function may not return (see <https://docs.rs/winit/latest/winit/event_loop/struct.EventLoop.html#method.run_app>).
 /// On web uses <https://docs.rs/winit/latest/wasm32-unknown-unknown/winit/platform/web/trait.EventLoopExtWebSys.html#tymethod.spawn_app> instead of `run_app()`.
-pub fn start(
+pub fn start_with<A, D>(
     window_attributes: WindowAttributes,
     fps: u32,
     max_frame_time: Duration,
-    app: impl App + 'static,
-) -> anyhow::Result<()> {
+    app_creation_data: D,
+) -> anyhow::Result<()> where A: App<D> {
     let event_loop = EventLoop::new()?;
 
     event_loop.set_control_flow(ControlFlow::Poll);
 
     #[cfg_attr(target_arch = "wasm32", allow(unused_mut))]
-    let mut handler = AppHandler::new(window_attributes, fps, max_frame_time, app);
+    let mut handler: AppHandler<A, D> = AppHandler::new(window_attributes, fps, max_frame_time, app_creation_data);
 
     cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
