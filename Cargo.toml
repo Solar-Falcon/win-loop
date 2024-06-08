@@ -1,6 +1,6 @@
 [package]
 name = "win-loop"
-version = "0.10.0"
+version = "0.10.1"
 description = "Windowing (using `winit`), nice input handling and frame-rate-independent game loop all wrapped up in a neat little package."
 authors = ["Solar-Falcon"]
 edition = "2021"
@@ -11,7 +11,6 @@ readme = "README.md"
 
 [dependencies]
 anyhow = "1"
-cfg-if = "1"
 log = "0.4"
 rustc-hash = "1"
 web-time = "0.2"

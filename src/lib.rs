@@ -1,7 +1,6 @@
 #![doc = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/README.md"))]
 #![warn(missing_docs)]
 
-use cfg_if::cfg_if;
 use handler::AppHandler;
 use web_time::Duration;
 use winit::{
@@ -105,24 +104,20 @@ pub fn start<A>(
     app_init: Box<AppInitFunc<A>>,
 ) -> anyhow::Result<()>
 where
-    A: App,
+    A: App + 'static,
 {
     let event_loop = EventLoop::new()?;
 
     event_loop.set_control_flow(ControlFlow::Poll);
 
-    #[cfg_attr(target_arch = "wasm32", allow(unused_mut))]
+    #[cfg_attr(any(target_arch = "wasm32", target_arch = "wasm64"), allow(unused_mut))]
     let mut handler = AppHandler::new(app_init, fps, max_frame_time);
 
-    cfg_if! {
-        if #[cfg(target_arch = "wasm32")] {
-            use winit::platform::web::EventLoopExtWebSys;
+    #[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
+    event_loop.run_app(&mut handler)?;
 
-            event_loop.spawn_app(handler);
-        } else {
-            event_loop.run_app(&mut handler)?;
-        }
-    }
+    #[cfg(any(target_arch = "wasm32", target_arch = "wasm64"))]
+    winit::platform::web::EventLoopExtWebSys::spawn_app(event_loop, handler);
 
     Ok(())
 }
